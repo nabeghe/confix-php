@@ -1,0 +1,28 @@
+{
+    "name": "nabeghe/confix",
+    "description": "Static-architecture PHP configuration library. Simple, file-backed, class-based configuration with parent/child partitioning and dot-notation support.",
+    "keywords": [
+        "config", "configuration", "settings", "options", "helper", "support", "Static",
+        "static-config", "php-config", "config-manager", "file-config", "class-config", "nested-config", "dot-notation",
+        "settings-manager", "static-settings", "options-manager", "config-system"
+    ],
+    "type": "library",
+    "homepage": "https://github.com/nabeghe/confix-php",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Hadi Akbarzadeh",
+            "email": "elsiomcoder@gmail.com",
+            "homepage": "https://elatel.ir",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Nabeghe\\Confix\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.3"
+    }
+}
