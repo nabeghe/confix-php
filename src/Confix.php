@@ -23,6 +23,8 @@ abstract class Confix
 
     const array DEFAULTS = [];
 
+    const bool IGNORE_RELOAD_EXEPTION = true;
+
     protected static array $_;
 
     private static array $_loadedClasses = [];
@@ -250,7 +252,12 @@ abstract class Confix
             self::$_loadedClasses[static::class] = true;
 
             return true;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            if (!static::IGNORE_RELOAD_EXEPTION) {
+                /** @noinspection PhpUnhandledExceptionInspection */
+                throw $e;
+            }
+
             return false;
         }
     }
