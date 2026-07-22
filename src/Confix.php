@@ -307,6 +307,7 @@ abstract class Confix
             if (!isset(static::$_)) {
                 static::load();
             }
+            $name ??= static::NAME;
             if (!isset(static::$_[$name])) {
                 static::$_[$name] = [];
             }
