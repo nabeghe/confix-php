@@ -51,7 +51,7 @@ abstract class Confix
 
     public static function get(string $name, bool $includeDefault = true): mixed
     {
-        $data = &static::getDataByRef();
+        $data = static::getData();
 
         if (static::NESTED && str_contains($name, '.')) {
             $keys = explode('.', $name);
@@ -64,7 +64,7 @@ abstract class Confix
             return $data;
         }
 
-        return $data[$name] ?? static::getDefault($name);
+        return $data[$name] ?? ($includeDefault ? static::getDefault($name) : null);
     }
 
     public static function set(string $name, mixed $value, bool $validate = true): bool
@@ -162,10 +162,11 @@ abstract class Confix
 
     public static function getData(bool $default = false): array|bool
     {
-        self::ensureLoaded();
+        static::ensureLoaded();
 
         if (static::PARENT) {
-            return static::PARENT::getData()[static::NAME];
+            $parentData = static::PARENT::getData();
+            return $parentData[static::NAME] ?? [];
         } else {
             return static::$_;
         }
@@ -173,10 +174,14 @@ abstract class Confix
 
     public static function &getDataByRef(): array
     {
-        self::ensureLoaded();
+        static::ensureLoaded();
 
         if (static::PARENT) {
-            return static::PARENT::getDataByRef()[static::NAME];
+            $parentData = &static::PARENT::getDataByRef();
+            if (!isset($parentData[static::NAME]) || !is_array($parentData[static::NAME])) {
+                $parentData[static::NAME] = [];
+            }
+            return $parentData[static::NAME];
         } else {
             return static::$_;
         }
@@ -185,7 +190,7 @@ abstract class Confix
     public static function setData(?array $newData = null, bool $save = false): bool
     {
         $data = &static::getDataByRef();
-        $data = $newData;
+        $data = $newData ?? [];
         unset($data);
         return !$save || static::save();
     }
@@ -196,8 +201,21 @@ abstract class Confix
             return static::PARENT::save();
         }
 
+        if (!isset(static::$_)) {
+            static::load();
+        }
+
         $filePath = static::getFilePath();
-        $fp = fopen($filePath, 'w');
+        $directory = dirname($filePath);
+
+        if (!is_dir($directory) && !static::mkdir($directory)) {
+            return false;
+        }
+
+        $fp = @fopen($filePath, 'w');
+        if (!$fp) {
+            return false;
+        }
 
         if (!flock($fp, LOCK_EX)) {
             fclose($fp);
@@ -241,10 +259,11 @@ abstract class Confix
             $file = static::getFilePath();
 
             if (file_exists($file)) {
-                static::$_ = include $file;
-                if (!isset(static::$_)) {
-                    static::$_ = [];
+                $data = include $file;
+                if (!is_array($data)) {
+                    $data = [];
                 }
+                static::$_ = $data;
             } else {
                 static::$_ = [];
             }
@@ -302,7 +321,12 @@ abstract class Confix
     protected static function ensureLoaded(?string $name = null): void
     {
         if (static::PARENT) {
-            static::PARENT::ensureLoaded($name ?? static::NAME);
+            static::PARENT::ensureLoaded();
+            $data = &static::PARENT::getDataByRef();
+            $name ??= static::NAME;
+            if (!isset($data[$name]) || !is_array($data[$name])) {
+                $data[$name] = [];
+            }
         } else {
             if (!isset(static::$_)) {
                 static::load();

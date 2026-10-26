@@ -1,104 +1,79 @@
 # Confix
 
-> **Static-architecture PHP configuration library.**  
-> Simple, file-backed, class-based configuration with parent/child partitioning and dot-notation support.
+> **Modern, static-architecture PHP configuration library.**  
+> File-backed, class-based configuration with parent/child partitioning, dot-notation support, and zero instantiation.
 
-[![PHP](https://img.shields.io/badge/PHP-%3E%3D8.3-blue)](https://www.php.net/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PHP](https://img.shields.io/badge/PHP-%3E%3D8.3-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
+[![Tests](https://img.shields.io/badge/Tests-Pest%20PHP-brightgreen?style=flat-square)](tests)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE.md)
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
+- [Features](#features)
 - [Installation](#installation)
+- [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
-    - [Standalone Config (own file)](#standalone-config-own-file)
-    - [Child Config (shared file)](#child-config-shared-file)
-    - [Dynamic Method Calls](#dynamic-method-calls)
-    - [Nested Dot-Notation](#nested-dot-notation)
-    - [Custom Validation](#custom-validation)
+  - [Recommended Base Class](#1-recommended-base-class)
+  - [Standalone Config (Dedicated File)](#2-standalone-config-dedicated-file)
+  - [Child Config (Shared File Partition)](#3-child-config-shared-file-partition)
+  - [Chained Hierarchies (Grandchild Configs)](#4-chained-hierarchies-grandchild-configs)
+  - [Dynamic Static Methods (`__callStatic`)](#5-dynamic-static-methods-__callstatic)
+  - [Nested Dot-Notation](#6-nested-dot-notation)
+  - [Custom Validation](#7-custom-validation)
 - [Constants Reference](#constants-reference)
 - [API Reference](#api-reference)
-    - [Reading Values](#reading-values)
-    - [Writing Values](#writing-values)
-    - [Removing Values](#removing-values)
-    - [Bulk Data Operations](#bulk-data-operations)
-    - [File Persistence](#file-persistence)
-    - [Overridable Hooks](#overridable-hooks)
+  - [Reading Data](#reading-data)
+  - [Writing Data](#writing-data)
+  - [Removing Data](#removing-data)
+  - [Bulk Data & Reference Operations](#bulk-data--reference-operations)
+  - [File Persistence & Lifecycle](#file-persistence--lifecycle)
+  - [Overridable Hooks](#overridable-hooks)
 - [Running Tests](#running-tests)
 - [License](#license)
 
 ---
 
-## Overview
+## Features
 
-Confix is designed with the goal that your configuration system should not require instantiating a class; it works in a fully static manner.
-You can have static configuration classes whose data source is a file; a file that returns the configuration as an array.
-Each class can have its own dedicated config file, or it can be a section within a parent config file.
-
-In fact, two types of classes can be implemented using Confix:
-1. Parent classes (Standalone configs) that have their own dedicated config file. For example, `AppSettings`, whose file could be `app.php`.
-2. Child (nested) classes that are linked to a parent class. For example, `DatabaseSettings`, which can be linked to `app.php` and whose configuration is stored within a section (key) named `database`.
-
-The purpose of having dedicated classes for configs is to use dynamic static methods, handled by __`callStatic`;
-for getting and setting config keys, so there is no need to write keys as raw strings.
-There is also no need to actually implement the static methods;
-it is sufficient to declare them in the class docblock as `@method` annotations to assist the IDE.
-That said, methods for accessing keys as plain strings or via dot-notation are also available.
+- ⚡ **Zero Instantiation:** 100% static architecture — no singletons, factories, or dependency injection containers required.
+- 📁 **File-Backed & Auto-Loaded:** Automatically reads from and writes to native PHP array configuration files.
+- 🌳 **Parent/Child Partitioning:** Organize configs into clean, dedicated classes while storing them in a single physical file.
+- 🔗 **Multi-Level Delegation:** Seamlessly chain configs to any depth (`Child -> Parent -> Root`).
+- 🎯 **IDE Autocompletion:** Use `@method` annotations to enjoy full IDE code completion without magic strings.
+- 🔍 **Nested Dot-Notation:** Optional dot-notation (`db.connections.mysql.host`) with automatic nested array creation and cleanup.
+- 🛡️ **Built-in Validation Hook:** Easily guard and validate configuration values before runtime storage.
+- 🔒 **Safe Concurrent Writes:** File persistence uses `flock(LOCK_EX)` to prevent race conditions during saves.
+- 🛠️ **Fully Customizable I/O:** Override hooks for storage directory, serialization, directory creation, and file writers.
 
 ---
 
 ## Installation
 
+Install Confix via Composer:
+
 ```bash
 composer require nabeghe/confix
 ```
 
-Requires **PHP ≥ 8.3**.
+> **Requirements:** PHP **8.3** or higher.
 
 ---
 
-## Core Concepts
-
-### Base Config class
-
-By default, Confix uses the config directory in your project root.
-It is recommended to configure this path yourself, even if you do not intend to change it.
-Therefore, you should have a base class, and all other config classes should extend this class instead of extending Confix directly.
-So:
-
-```php
-use Nabeghe\Confix\Confix;
-
-abstract class Settings extends Confix
-{
-    #[Override]
-    protected static function getDirectory(): string
-    {
-        // TODO: Return the path to the config files directory without a trailing slash.
-    }
-}
-```
-
-You can also override methods such as `mkdir`, `filePutContents`, and `varExport` to implement your own logic.
-I recommend using `Symfony\Component\VarExporter` for `varExport`, and `Symfony\Component\Filesystem\Filesystem` for `mkdir` and `filePutContents`.
-
-### Standalone Config (own file)
-
-A standalone config declares `protected static array $_;` which signals that it owns its own config file.
+## Quick Start
 
 ```php
 use Nabeghe\Confix\Confix;
 
 /**
- * @method static string name(string $value = 0)
- * @method static bool debug(bool $value = 0)
- * @method static string version(string $value = 0)
+ * @method static string name(?string $value = null)
+ * @method static bool debug(?bool $value = null)
+ * @method static string version(?string $value = null)
  */
 class AppConfig extends Confix
 {
-    const string NAME = 'app'; // → config/app.php
+    const string NAME = 'app'; // maps to config/app.php
 
     const array DEFAULTS = [
         'name'    => 'My Application',
@@ -106,145 +81,248 @@ class AppConfig extends Confix
         'version' => '1.0.0',
     ];
 
-    protected static array $_; // declares file ownership
+    protected static array $_; // declares standalone file ownership
 }
-```
 
-The directory defaults to `<project-root>/config/`. Override `getDirectory()` to customise it.
+// 1. Read values (falls back to defaults automatically)
+AppConfig::name();        // 'My Application'
+AppConfig::get('debug');  // false
+
+// 2. Write values at runtime
+AppConfig::debug(true);   // true
+AppConfig::get('debug');  // true
+
+// 3. Persist to disk (writes config/app.php)
+AppConfig::save();
+```
 
 ---
 
-### Child Config (shared file)
+## Core Concepts
 
-A child config sets `PARENT` to point at another config class.
-It lives as a **keyed section** inside the parent's file; no separate file is created.
+### 1. Recommended Base Class
+
+By default, Confix locates configuration files in `<project-root>/config`. It is best practice to define an abstract base class for your project to configure this path and any shared hooks:
 
 ```php
+namespace App\Config;
 
-/**
- * @method static string driver(string $value = 0)
- * @method static int ttl(int $value = '')
- */
-class CacheConfig extends Confix
+use Nabeghe\Confix\Confix;
+use Override;
+
+abstract class Settings extends Confix
 {
-    const string NAME     = 'cache'; // key inside app.php
-    
-    const ?string PARENT  = AppConfig::class;
-
-    const array DEFAULTS = [
-        'driver' => 'file',
-        'ttl'    => 600,
-    ];
-    
-    // No protected static array $_ here!
+    #[Override]
+    protected static function getDirectory(): string
+    {
+        return dirname(__DIR__, 2) . '/config';
+    }
 }
 ```
 
-The resulting `app.php` file will look like:
+All your specific configuration classes can then extend `Settings` rather than `Confix` directly.
+
+---
+
+### 2. Standalone Config (Dedicated File)
+
+A standalone configuration owns its own physical file. Declaring `protected static array $_;` signals file ownership:
+
+```php
+namespace App\Config;
+
+/**
+ * @method static string env(?string $value = null)
+ * @method static bool debug(?bool $value = null)
+ */
+class AppConfig extends Settings
+{
+    const string NAME = 'app'; // → config/app.php
+
+    const array DEFAULTS = [
+        'env'   => 'production',
+        'debug' => false,
+    ];
+
+    protected static array $_;
+}
+```
+
+---
+
+### 3. Child Config (Shared File Partition)
+
+A child configuration sets `PARENT` to another config class and **does not** declare `protected static array $_;`. Instead, it lives as a **named section (key)** inside the parent's file:
+
+```php
+namespace App\Config;
+
+/**
+ * @method static string driver(?string $value = null)
+ * @method static int ttl(?int $value = null)
+ */
+class CacheConfig extends Settings
+{
+    const string NAME = 'cache'; // key inside config/app.php
+
+    const ?string PARENT = AppConfig::class;
+
+    const array DEFAULTS = [
+        'driver' => 'file',
+        'ttl'    => 3600,
+    ];
+}
+```
+
+When saved, `config/app.php` neatly partitions both configs into one unified array:
 
 ```php
 <?php return [
-    'name'  => 'My Application',
+    'env'   => 'production',
+    'debug' => false,
     'cache' => [
-        'driver' => 'redis',
+        'driver' => 'file',
         'ttl'    => 3600,
     ],
 ];
 ```
 
-Chains of any depth work: `GrandChildConfig::PARENT = CacheConfig::class` delegates all the way up to `AppConfig`.
+Operations on `CacheConfig` (such as `save()`, `load()`, `reload()`, and `remove()`) automatically delegate to `AppConfig`.
 
 ---
 
-## Dynamic Method Calls
+### 4. Chained Hierarchies (Grandchild Configs)
 
-Any method name that is **not** defined on `Confix` is intercepted by `__callStatic()` and treated as a config key:
-
-| Call | Equivalent | Returns |
-|---|---|---|
-| `Config::key_name()` | `Config::get('key_name')` | Current or default value |
-| `Config::key_name($value)` | `Config::set('key_name', $value)` | `true` / `false` |
-| `Config::key_name(null)` | `Config::forget('key_name')` | `true` |
-
-Document these in your config's docblock for IDE autocompletion:
+Confix supports parent delegation chains to **any depth**:
 
 ```php
-/**
- * @method static string name(string $value = 0)
- * @method static bool   debug(bool $value = 0)
- * @method static int    version(string $value = 0)
- */
-class AppConfig extends Confix { ... }
+namespace App\Config;
+
+class RedisConfig extends Settings
+{
+    const string NAME = 'redis'; // section inside 'cache'
+
+    const ?string PARENT = CacheConfig::class;
+
+    const array DEFAULTS = [
+        'host' => '127.0.0.1',
+        'port' => 6379,
+    ];
+}
+
+// Stored at: app.php → ['cache']['redis']['host']
+RedisConfig::get('host'); // '127.0.0.1'
+RedisConfig::set('host', '10.0.0.1');
+
+// Persisting RedisConfig saves the root app.php file!
+RedisConfig::save();
 ```
 
 ---
 
-### Nested Dot-Notation
+### 5. Dynamic Static Methods (`__callStatic`)
 
-Set `const bool NESTED = true` to enable accessing multi-level arrays with dot-notation strings.
+Instead of writing string keys manually, any static method call not explicitly declared on the class is intercepted by `__callStatic`:
+
+| Method Call | Equivalent API Call | Description |
+|---|---|---|
+| `Config::key()` | `Config::get('key')` | Retrieves current or default value |
+| `Config::key($value)` | `Config::set('key', $value)` | Stores `$value` and returns `true` |
+| `Config::key(null)` | `Config::forget('key')` | Removes runtime value and returns `true` |
+
+Add `@method` docblock tags to your configuration class to get instantaneous IDE autocompletion and type insights:
 
 ```php
-class InfraConfig extends Confix
+/**
+ * @method static string name(?string $value = null)
+ * @method static bool debug(?bool $value = null)
+ * @method static int timeout(?int $value = null)
+ */
+class AppConfig extends Settings { ... }
+```
+
+---
+
+### 6. Nested Dot-Notation
+
+Set `const bool NESTED = true;` to enable dot-notation access for multi-dimensional arrays:
+
+```php
+namespace App\Config;
+
+class DatabaseConfig extends Settings
 {
-    const string NAME  = 'infra';
+    const string NAME = 'database';
     
-    const bool   NESTED = true; // important
+    const bool NESTED = true; // Enables dot-notation support
 
     const array DEFAULTS = [
-        'db' => [
-            'host' => 'localhost',
-            'port' => 3306,
+        'connections' => [
+            'mysql' => [
+                'host' => '127.0.0.1',
+                'port' => 3306,
+                'user' => 'root',
+            ],
         ],
     ];
 
     protected static array $_;
 }
 
-// Read
-InfraConfig::get('db.host'); // 'localhost'
-InfraConfig::get('db.port'); // 3306
+// 1. Reading nested keys
+DatabaseConfig::get('connections.mysql.host'); // '127.0.0.1'
+DatabaseConfig::has('connections.mysql.port'); // true
 
-// Write
-InfraConfig::set('db.host', '10.0.0.1');
+// 2. Writing nested keys (intermediate arrays are created automatically)
+DatabaseConfig::set('connections.mysql.host', '192.168.1.100');
+DatabaseConfig::set('connections.pgsql.port', 5432);
 
-// Forget
-InfraConfig::forget('db.port');
+// 3. Removing nested keys
+DatabaseConfig::forget('connections.pgsql.port');
+DatabaseConfig::set('connections.mysql.host', null); // Setting null also unsets the key
 ```
 
-**Notice:** Without `NESTED = true`, dot-notation keys are treated as literal strings.
+> **Note:** When `NESTED = false` (default), keys containing dots (e.g. `'db.host'`) are treated as literal flat string keys.
 
 ---
 
-### Custom Validation
+### 7. Custom Validation
 
-Override the protected `validate()` method to guard individual keys:
+Override the protected `validate()` hook to guard keys before storing them at runtime:
 
 ```php
-class ServerConfig extends Confix
+namespace App\Config;
+
+use Override;
+
+class ServerConfig extends Settings
 {
     const string NAME = 'server';
-    
-    const array  DEFAULTS = ['port' => 80];
-    
+
+    const array DEFAULTS = [
+        'port' => 8080,
+        'host' => '127.0.0.1',
+    ];
+
     protected static array $_;
 
+    #[Override]
     protected static function validate(string $name, mixed $value): bool
     {
         return match ($name) {
             'port' => is_int($value) && $value > 0 && $value <= 65535,
+            'host' => is_string($value) && filter_var($value, FILTER_VALIDATE_IP) !== false,
             default => true,
         };
     }
 }
 
-ServerConfig::set('port', 443); // ✅ true — stored
-ServerConfig::set('port', -1); // ❌ false — rejected, old value kept
-```
+ServerConfig::set('port', 443);  // ✅ true  — stored
+ServerConfig::set('port', -1);   // ❌ false — rejected, previous value kept
+ServerConfig::set('port', 99999);// ❌ false — rejected
 
-Pass `false` as the third argument to `set()` to skip validation:
-
-```php
-ServerConfig::set('port', 0, false); // bypasses validate(), stored as-is
+// Bypass validation if needed by passing false as 3rd parameter:
+ServerConfig::set('port', -1, validate: false); // ✅ true — stored as-is
 ```
 
 ---
@@ -253,185 +331,197 @@ ServerConfig::set('port', 0, false); // bypasses validate(), stored as-is
 
 | Constant | Type | Default | Description |
 |---|---|---|---|
-| `NAME` | `string` | `'app'` | Key name used for the file name (standalone) or section key (child) |
-| `PARENT` | `?string` | `null` | Fully-qualified class name of the parent config, or `null` for standalone |
-| `NESTED` | `bool` | `false` | Enable dot-notation access for multi-dimensional arrays |
-| `DEFAULTS` | `array` | `[]` | Fallback values returned when a key has no runtime value |
+| `NAME` | `string` | `'app'` | File name (for standalone configs) or section key (for child configs). |
+| `PARENT` | `?string` | `null` | Fully-qualified class name of the parent configuration, or `null` for standalone. |
+| `NESTED` | `bool` | `false` | When `true`, enables dot-notation traversal for multi-dimensional arrays. |
+| `DEFAULTS` | `array` | `[]` | Fallback values returned when a key has not been explicitly set at runtime. |
+| `IGNORE_RELOAD_EXEPTION` | `bool` | `true` | When `true`, catches reload exceptions (e.g. corrupt files) and returns `false`. When `false`, re-throws the exception. |
 
 ---
 
 ## API Reference
 
-### Reading Values
+### Reading Data
 
 #### `get(string $name, bool $includeDefault = true): mixed`
-
-Returns the runtime value for `$name`.
-If not set, falls back to `DEFAULTS[$name]` when `$includeDefault` is `true`;
-returns `null` otherwise.
+Returns the runtime value for `$name`. If the key is not set:
+- Returns `DEFAULTS[$name]` when `$includeDefault = true`.
+- Returns `null` when `$includeDefault = false`.
 
 ```php
-AppConfig::get('debug'); // Can include default
-AppConfig::get('debug', false); // Cannot include default
+AppConfig::get('debug');        // Returns runtime value or default
+AppConfig::get('debug', false); // Returns runtime value or null
 ```
 
 #### `getDefault(string $name): mixed`
-
-Returns the value from `DEFAULTS` directly, bypassing runtime data.
+Returns the default value directly from `DEFAULTS`, completely bypassing runtime data.
 
 ```php
 AppConfig::getDefault('version'); // '1.0.0'
 ```
 
 #### `has(string $name, bool $includeDefault = true): bool`
-
-Returns `true` when a non-null value exists for `$name`.
+Returns `true` if a non-null value exists (or non-null default if `$includeDefault = true`).
 
 ```php
-AppConfig::has('name'); // Can include default
-AppConfig::has('name', false); // Cannot include default
+AppConfig::has('name');         // true
+AppConfig::has('ghost_key');   // false
 ```
 
 #### `hasDefault(string $name): bool`
-
-Returns `true` if the key is declared in `DEFAULTS`.
+Returns `true` if the key is defined and non-null in `DEFAULTS`.
 
 ```php
 AppConfig::hasDefault('version'); // true
-AppConfig::hasDefault('ghost_key'); // false
+AppConfig::hasDefault('ghost');   // false
 ```
 
 ---
 
-### Writing Values
+### Writing Data
 
 #### `set(string $name, mixed $value, bool $validate = true): bool`
-
-Stores `$value` for `$name`. Runs `validate()` first unless `$validate` is `false`. Returns `true` on success, `false` if validation fails or `$value` is `null` (which triggers removal).
+Stores `$value` for key `$name`.
+- Validates `$value` via `validate()` unless `$validate = false`.
+- Setting a key to `null` automatically unsets it from runtime data.
+- Returns `true` on success, or `false` if validation failed.
 
 ```php
-AppConfig::set('debug', true); // true
-AppConfig::set('port', -1); // false — validation failed
-AppConfig::set('port', -1, false);  // true  — validation skipped
+AppConfig::set('name', 'Acme App');
+AppConfig::set('port', 8080, validate: false); // skips validation
+AppConfig::set('name', null);                 // unsets 'name', falls back to default
 ```
 
 ---
 
-### Removing Values
+### Removing Data
 
 #### `forget(string $name): void`
-
-Removes `$name` from the runtime data. The default value is still accessible afterwards.
+Removes `$name` from runtime data. Subsequent `get()` calls will fall back to `DEFAULTS`.
 
 ```php
-AppConfig::forget('debug');
-AppConfig::get('debug');    // false — falls back to DEFAULTS
+AppConfig::set('name', 'Custom Name');
+AppConfig::forget('name');
+AppConfig::get('name'); // 'My Application' (default restored)
 ```
 
 #### `clear(?string $name = null): void`
-
-Clears **all** runtime data in the config.
+Empties all runtime data in the configuration. For child configs, clears only that child's section.
 
 ```php
 AppConfig::clear();
-AppConfig::getData();    // []
+AppConfig::getData(); // []
 ```
 
 ---
 
-### Bulk Data Operations
+### Bulk Data & Reference Operations
 
 #### `getData(bool $default = false): array|bool`
-
-Returns the current runtime data array (or the child partition for child configs).
+Returns the entire runtime data array (or the child's partitioned section).
 
 ```php
 $data = AppConfig::getData();
-// ['name' => 'My Application', 'cache' => ['driver' => 'redis']]
+// ['name' => 'My Application', 'debug' => false, ...]
 ```
 
-#### `getDataByRef(): array` *(reference)*
-
-Returns a **reference** to the internal data array, allowing direct mutation.
+#### `&getDataByRef(): array`
+Returns a **direct reference** to the internal configuration array, allowing in-place mutation:
 
 ```php
 $ref = &AppConfig::getDataByRef();
-$ref['name'] = 'Updated';
-AppConfig::get('name', false); // 'Updated'
+$ref['name'] = 'Mutated Directly';
+
+AppConfig::get('name'); // 'Mutated Directly'
 ```
 
 #### `setData(?array $newData = null, bool $save = false): bool`
-
-Replaces the entire runtime data array. Pass `$save = true` to immediately persist to file.
+Replaces the entire runtime data array. Pass `save: true` to persist immediately to disk.
 
 ```php
-AppConfig::setData(['name' => 'New App', 'debug' => false]);
-AppConfig::setData(['name' => 'New App'], save: true); // writes file
+AppConfig::setData(['name' => 'Brand New App', 'debug' => true]);
+AppConfig::setData(['name' => 'Persisted App'], save: true); // immediately writes to disk
 ```
 
 ---
 
-### File Persistence
+### File Persistence & Lifecycle
+
+#### `save(): bool`
+Writes runtime configuration to disk using `flock(LOCK_EX)` for atomic concurrency. Sections with `null` or empty values are automatically filtered out. Child configs delegate to their parent.
+
+```php
+AppConfig::set('env', 'staging');
+AppConfig::save(); // writes to config/app.php
+```
 
 #### `load(): bool`
-
-Loads data from the config file into memory. Auto-called on first access; you rarely need to call this manually.
+Loads data from the file into memory. Called automatically on first access.
 
 ```php
 AppConfig::load();
 ```
 
 #### `reload(): bool`
-
-Forces a fresh read from the filesystem, discarding any in-memory changes.
+Re-reads the file from disk, discarding any unsaved runtime mutations.
 
 ```php
 AppConfig::reload();
 ```
 
 #### `reloadAllLoadedClasses(): array`
-
-Reloads every config class that has been accessed in the current request. Returns an array of `[class => bool]`.
-
-```php
-$results = AppConfig::reloadAllLoadedClasses();
-// ['App\Config\AppConfig' => true, 'App\Config\CacheConfig' => true]
-```
-
-#### `save(): bool`
-
-Serialises the runtime data to the config file using `flock()` for safe concurrent writes. Child configs delegate to the parent.
+Reloads all Confix classes that have been accessed during the current request. Returns an array of `[ClassName => bool]`.
 
 ```php
-AppConfig::set('name', 'Updated');
-AppConfig::save(); // writes config/app.php
+$results = Confix::reloadAllLoadedClasses();
+// [
+//     'App\Config\AppConfig'   => true,
+//     'App\Config\CacheConfig' => true,
+// ]
 ```
 
 #### `remove(): bool`
-
-Deletes the config file from disk.
+Deletes the configuration file from disk.
 
 ```php
-AppConfig::remove();
+AppConfig::remove(); // deletes config/app.php
 ```
 
 ---
 
 ### Overridable Hooks
 
-These protected static methods can be overridden in your base config class:
+You can customize Confix by overriding these protected static methods in your base class:
 
-| Method | Signature | Purpose |
+| Method | Return Type | Description |
 |---|---|---|
-| `getDirectory()` | `(): string` | Return the directory where config files are stored |
-| `mkdir()` | `(string $path): bool` | Create a directory; override to use your filesystem abstraction |
-| `filePutContents()` | `(string $file, string $content): bool` | Write content to a file; override to use custom writers |
-| `varExport()` | `(mixed $var): string` | Serialise a value to PHP code; override to use e.g. `VarExporter::export()` |
-| `validate()` | `(string $name, mixed $value): bool` | Return `false` to reject a value before storage |
+| `getDirectory()` | `string` | Returns the directory path where config files reside. |
+| `getFilePath()` | `string` | Returns the absolute path to the config file (`directory/name.php`). |
+| `validate(string $name, mixed $value)` | `bool` | Custom validation rule; return `false` to reject storage. |
+| `varExport(mixed $var)` | `string` | Serializes data to PHP code (override to use e.g. `VarExporter`). |
+| `mkdir(string $path)` | `bool` | Creates directory (override to integrate custom filesystem). |
+| `filePutContents(string $file, string $content)` | `bool` | Writes file content (override for custom file writers). |
+| `mergeDefaults(array $data)` | `array` | Merges defaults with runtime data (`recursive` if `NESTED`, `flat` otherwise). |
+
+---
+
+## Running Tests
+
+Confix is thoroughly tested with [Pest PHP](https://pestphp.com/). Run the test suite with:
+
+```bash
+composer test
+```
+
+Or run Pest directly:
+
+```bash
+./vendor/bin/pest
+```
 
 ---
 
 ## 📜 License
 
-Created with ❤️ by Nabeghe. Licensed under the [MIT License](LICENSE.md). Free to use, modify, and distribute!
-
+Created with ❤️ by **Hadi Akbarzadeh** ([Nabeghe](https://github.com/nabeghe)).  
+Licensed under the [MIT License](LICENSE.md). Free for personal and commercial use.

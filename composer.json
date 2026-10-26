@@ -22,7 +22,23 @@
             "Nabeghe\\Confix\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
     "require": {
         "php": ">=8.3"
+    },
+    "require-dev": {
+        "pestphp/pest": "*"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "pest"
     }
 }
